@@ -1,27 +1,20 @@
 #fastapi ko endpoints haru banaucha
-from fastapi import FastAPI, HTTPException
-from app.schemas.task import TaskRequest, TaskResponse
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from app.services.pii_services import mask_pii
-from app.services.ai_service import generate_micro_wins
+from app.services.ai_service import stream_micro_wins
+from app.schemas.task import TaskRequest
 
 app = FastAPI()
 
-@app.post("/api/v1/decompose", response_model=TaskResponse)
-async def process_user_instruction(request: TaskRequest):
-    try:
-        # 1. THE FILTER: Clean the data locally
-        safe_instruction = mask_pii(request.instruction)
-        
-        # 2. THE BRAIN: Get steps from the AI
-        raw_ai_output = await generate_micro_wins(safe_instruction)
-        
-        # 3. THE DELIVERY: Return the response
-        return {
-            "scrubbed_instruction": safe_instruction,
-            "micro_wins": [
-                {"step_id": 1, "action": "Clear the surface", "time_estimate": "2 mins"},
-                {"step_id": 2, "action": "Wipe with a cloth", "time_estimate": "1 min"}
-            ] 
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/v1/decompose/stream")
+async def process_streaming_task(request: TaskRequest):
+    # Step 1: Scrub PII (Must happen BEFORE the stream starts)
+    safe_instruction = mask_pii(request.instruction)
+    
+    # Step 2: Return a Stream
+    # The frontend will start receiving data IMMEDIATELY
+    return StreamingResponse(
+        stream_micro_wins(safe_instruction), 
+        media_type="text/event-stream"
+    )

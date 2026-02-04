@@ -4,13 +4,16 @@ import os
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def generate_micro_wins(safe_text: str):
-    # This system prompt is your "Secret Sauce" for the hackathon
-    prompt = f"Break this goal into 3-5 tiny, physical actions: {safe_text}"
-    
+async def stream_micro_wins(safe_text: str):
+    # We tell the AI to stream the response
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": f"Break this into 3 tiny steps: {safe_text}"}],
+        stream=True  # THIS IS THE KEY
     )
-    # Note: In the final version, we'll parse this into the MicroStep list
-    return response.choices[0].message.content
+
+    for chunk in response:
+        if chunk.choices[0].delta.content:
+            content = chunk.choices[0].delta.content
+            # We "yield" each word as it arrives
+            yield f"data: {content}\n\n"

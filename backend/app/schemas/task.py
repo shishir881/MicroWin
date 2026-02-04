@@ -1,19 +1,20 @@
-# uses pydantic for data validation and serialization
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List
 
-# The structure of a single "Micro-Win" step
-class MicroStep(BaseModel):
+class MicroWin(BaseModel):
     step_id: int
     action: str
-    time_estimate: str = "2 mins"
+    is_completed: bool = False
 
-# What the user sends to us
-class TaskRequest(BaseModel):
-    instruction: str = Field(..., min_length=5, example="I need to clean my desk")
+class TaskCreate(BaseModel):
+    # User le input pathaune model
+    instruction: str = Field(..., min_length=5, example="Clean my room")
 
-# What we send back to the user
-class TaskResponse(BaseModel):
-    status: str = "success"
-    scrubbed_instruction: str
-    micro_wins: List[MicroStep]
+class TaskRead(BaseModel):
+    # API le response dine model
+    id: int
+    original_goal: str
+    micro_wins: List[MicroWin]
+    
+    # SQLAlchemy model sanga integrate garna
+    model_config = ConfigDict(from_attributes=True)
