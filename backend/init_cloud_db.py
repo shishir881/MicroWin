@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 # This ensures the variables are in the system environment
 load_dotenv() 
 
-from backend.app.db.session import engine, Base
+from app.db.session import engine, Base
 # Import all models so Base knows which tables to create
-from backend.app.models.task import Task 
+from app.models.task import Task 
 
 async def init_db():
     print("🚀 Connecting to Neon Cloud...")

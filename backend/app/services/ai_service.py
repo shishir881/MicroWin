@@ -1,19 +1,30 @@
 import json
 from google import genai
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.schemas.task import MicroWin, TaskStreamChunk
+from app.models.task import MicroWinModel
+from app.core.security import encrypt_data
 
+# Initialize Gemini Client
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-async def stream_micro_wins(safe_instruction: str, session_id: int):
+async def stream_micro_wins(safe_instruction: str, task_id: int, db: AsyncSession):
+    """
+    Streams 3-5 steps from AI. 
+    Uses a terminator JSON {"status": "end"} to force the last meaningful step 
+    out of the buffer for database persistence.
+    """
     prompt = (
         f"Goal: {safe_instruction}\n"
-        "Break this into 3 tiny actions. Output each as one JSON object per line: "
-        "{\"action\": \"...\"}"
+        "Break this into 3 to 5 tiny, physical actions. "
+        "Output each as a JSON object per line. "
+        "Crucial: After the final step, send one more line exactly like this: {\"status\": \"end\"}\n"
+        "Format: {\"action\": \"...\"}"
     )
 
     try:
-        # Gemini stream start
+        # Start content stream
         stream = client.models.generate_content_stream(
             model='gemini-2.5-flash', 
             contents=prompt
@@ -22,37 +33,59 @@ async def stream_micro_wins(safe_instruction: str, session_id: int):
         buffer = ""
         step_counter = 1
         
-        # यो लुपले पूरै AI response नसकिएसम्म साथ दिन्छ
         for chunk in stream:
             if chunk.text:
                 buffer += chunk.text
                 
-                # यदि buffer मा एउटा पूर्ण JSON object (}) भेटियो भने
-                if "}" in buffer:
-                    # हामी buffer लाई lines मा टुक्राउँछौँ
-                    lines = buffer.split('\n')
+                # Check for newlines to identify completed JSON lines
+                if "\n" in buffer:
+                    lines = buffer.split("\n")
                     
-                    # अन्तिम line बाहेक सबै पूर्ण हुन सक्छन् (अन्तिम line अपूर्ण हुन सक्छ)
+                    # Process all complete lines found so far
                     for line in lines[:-1]:
                         line = line.strip()
-                        if line.startswith('{') and line.endswith('}'):
-                            try:
-                                raw_data = json.loads(line)
+                        if not line:
+                            continue
+                        
+                        try:
+                            raw_data = json.loads(line)
+                            
+                            # TERMINATOR HACK: If status is 'end', the stream is done.
+                            # We don't save or yield this line.
+                            if raw_data.get("status") == "end":
+                                return 
+
+                            action_text = raw_data.get("action")
+                            if action_text:
+                                # 1. Encrypt and Save to Neon Cloud
+                                encrypted_action = encrypt_data(action_text)
+                                new_step = MicroWinModel(
+                                    task_id=task_id,
+                                    encrypted_action=encrypted_action,
+                                    is_completed=False,
+                                    step_order=step_counter
+                                )
+                                db.add(new_step)
+                                await db.commit()
+
+                                # 2. Format and Yield for the UI
                                 chunk_data = TaskStreamChunk(
-                                    id=session_id,
+                                    id=task_id,
                                     original_goal=safe_instruction,
                                     current_step=MicroWin(
                                         step_id=step_counter,
-                                        action=raw_data["action"]
+                                        action=action_text
                                     )
                                 )
                                 yield f"data: {chunk_data.model_dump_json()}\n\n"
                                 step_counter += 1
-                            except:
-                                continue
+
+                        except json.JSONDecodeError:
+                            # Skip lines that aren't valid JSON yet
+                            continue
                     
-                    # अपूर्ण रहन सक्ने अन्तिम line लाई buffer मा फिर्ता राख्ने
+                    # Keep the remaining partial data in the buffer
                     buffer = lines[-1]
 
     except Exception as e:
-        yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
+        yield f"data: {{\"error\": \"AI Stream Error: {str(e)}\"}}\n\n"

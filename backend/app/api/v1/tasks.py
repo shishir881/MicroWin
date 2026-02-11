@@ -29,6 +29,6 @@ async def decompose_task_stream(
 
     # Now we pass the REAL new_task.id to the AI service
     return StreamingResponse(
-        stream_micro_wins(safe_text, new_task.id), 
+        stream_micro_wins(safe_text, new_task.id, db), 
         media_type="text/event-stream"
     )
