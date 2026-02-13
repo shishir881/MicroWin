@@ -1,10 +1,12 @@
 import json
 from google import genai
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update
 from app.core.config import settings
 from app.schemas.task import MicroWin, TaskStreamChunk
 from app.models.task import MicroWinModel
 from app.core.security import encrypt_data
+from app.models.task import Task
 
 # Initialize Gemini Client
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
@@ -17,10 +19,12 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, db: AsyncSessio
     """
     prompt = (
         f"Goal: {safe_instruction}\n"
-        "Break this into 3 to 5 tiny, physical actions. "
-        "Output each as a JSON object per line. "
-        "Crucial: After the final step, send one more line exactly like this: {\"status\": \"end\"}\n"
-        "Format: {\"action\": \"...\"}"
+        "First, generate a concise 3-4 word title for this task (e.g., 'Mastering Python Basics'). "
+        "Then, break the goal into 3 to 5 tiny actions. "
+        "Output format: "
+        "Line 1: {\"title\": \"...\"}\n"
+        "Following lines: {\"action\": \"...\"}\n"
+        "Final line: {\"status\": \"end\"}"
     )
 
     try:
@@ -49,6 +53,16 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, db: AsyncSessio
                         
                         try:
                             raw_data = json.loads(line)
+
+                            # for title file
+                            if "title" in raw_data:
+                                # Update the Task record in Neon with the AI-generated title
+                                stmt = update(Task).where(Task.id == task_id).values(title=raw_data["title"])
+                                await db.execute(stmt)
+                                await db.commit()
+                                # Optional: Yield the title to the frontend so the sidebar updates live
+                                yield f"data: {{\"sidebar_title\": \"{raw_data['title']}\"}}\n\n"
+                                continue
                             
                             # TERMINATOR HACK: If status is 'end', the stream is done.
                             # We don't save or yield this line.

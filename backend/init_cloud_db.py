@@ -1,24 +1,19 @@
 import asyncio
-import os
-from dotenv import load_dotenv
-
-# 1. FORCE LOAD .ENV FIRST
-# This ensures the variables are in the system environment
-load_dotenv() 
-
 from app.db.session import engine, Base
-# Import all models so Base knows which tables to create
-from app.models.task import Task 
+# Import all models to ensure they are registered with Base.metadata
+from app.models.task import Task, MicroWinModel
+from app.models.user import User 
 
 async def init_db():
-    print("🚀 Connecting to Neon Cloud...")
-    try:
-        async with engine.begin() as conn:
-            # 2. RUN SCHEMA CREATION
-            await conn.run_sync(Base.metadata.create_all)
-        print("✅ Success! Your tables are now live in the cloud.")
-    except Exception as e:
-        print(f"❌ Error during initialization: {e}")
+    async with engine.begin() as conn:
+        print("Dropping existing tables...")
+        # WARNING: This deletes existing data. Necessary for schema updates.
+        await conn.run_sync(Base.metadata.drop_all)
+        
+        print("Creating new tables with updated schema...")
+        await conn.run_sync(Base.metadata.create_all)
+        
+    print("Database synchronization complete.")
 
 if __name__ == "__main__":
     asyncio.run(init_db())

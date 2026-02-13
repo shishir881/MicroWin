@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Boolean, LargeBinary, ForeignKey
+from sqlalchemy import Column, Integer, Boolean, LargeBinary, ForeignKey,String
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
@@ -6,13 +6,15 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
-    # Encrypted goal
-    encrypted_goal = Column(LargeBinary, nullable=False)
+    title = Column(String, nullable=True) # <--- For your Sidebar (e.g., "Singing Practice")
+    encrypted_goal = Column(String, nullable=False)
     is_completed = Column(Boolean, default=False)
     
-    # Relationship: Connects to MicroWinModel
-    # cascade="all, delete-orphan" means if you delete a Task, its steps are also deleted.
-    micro_wins = relationship("MicroWinModel", back_populates="owner", cascade="all, delete-orphan")
+    # User Relationship
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Set nullable=False later after auth
+    owner = relationship("User", back_populates="tasks")
+
+    micro_wins = relationship("MicroWinModel", back_populates="parent_task", cascade="all, delete-orphan")
 
 class MicroWinModel(Base):
     __tablename__ = "micro_wins"
@@ -27,4 +29,4 @@ class MicroWinModel(Base):
     step_order = Column(Integer) # To keep steps in 1, 2, 3 order
 
     # Back-reference to the parent Task
-    owner = relationship("Task", back_populates="micro_wins")
+    parent_task = relationship("Task", back_populates="micro_wins")
