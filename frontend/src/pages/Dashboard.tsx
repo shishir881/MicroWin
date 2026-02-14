@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { FontSwitcher } from "@/components/FontSwitcher"
 
 interface Message {
   role: "user" | "bot"
@@ -27,7 +28,7 @@ export default function Dashboard() {
   const [input, setInput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [darkMode, setDarkMode] = useState(true)
+  const [darkMode, setDarkMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
@@ -80,33 +81,33 @@ export default function Dashboard() {
 
   // Theme classes
   const theme = {
-    bg: darkMode ? "bg-[#09090b]" : "bg-white",
-    sidebar: darkMode ? "bg-zinc-900/80 border-white/5" : "bg-zinc-50 border-zinc-200",
-    sidebarText: darkMode ? "text-zinc-400" : "text-zinc-600",
-    sidebarHover: darkMode ? "hover:bg-white/5 hover:text-white" : "hover:bg-zinc-100 hover:text-black",
-    navActive: darkMode ? "bg-white text-black" : "bg-black text-white",
-    header: darkMode ? "bg-[#09090b] border-white/5" : "bg-white border-zinc-200",
+    bg: darkMode ? "bg-[#1a1b4b]" : "bg-zinc-50", // Vibrant deep blue for dark mode
+    sidebar: darkMode ? "bg-[#1e1b4b]/95 border-white/10" : "bg-white border-zinc-200",
+    sidebarText: darkMode ? "text-indigo-100" : "text-zinc-600",
+    sidebarHover: darkMode ? "hover:bg-white/10 hover:text-white" : "hover:bg-zinc-100 hover:text-black",
+    navActive: darkMode ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "bg-black text-white",
+    header: darkMode ? "bg-[#1a1b4b] border-white/10" : "bg-white border-zinc-200",
     headerText: darkMode ? "text-white" : "text-black",
-    headerSub: darkMode ? "text-zinc-500" : "text-zinc-500",
-    userBubble: darkMode ? "bg-white text-black" : "bg-black text-white",
-    botBubble: darkMode ? "bg-zinc-900 text-zinc-200 border-white/5" : "bg-zinc-100 text-zinc-800 border-zinc-200",
-    botAvatar: darkMode ? "bg-white" : "bg-black",
-    botAvatarIcon: darkMode ? "text-[#09090b]" : "text-white",
-    inputWrap: darkMode ? "bg-zinc-900/60 border-white/5 focus-within:border-zinc-600" : "bg-white border-zinc-200 focus-within:border-zinc-400",
-    inputField: darkMode ? "text-white placeholder:text-zinc-600" : "text-black placeholder:text-zinc-400",
+    headerSub: darkMode ? "text-indigo-200" : "text-zinc-500",
+    userBubble: darkMode ? "bg-indigo-500 text-white" : "bg-black text-white",
+    botBubble: darkMode ? "bg-[#312e81] text-indigo-50 border-indigo-700/50" : "bg-white text-zinc-800 border-zinc-200",
+    botAvatar: darkMode ? "bg-indigo-500" : "bg-black",
+    botAvatarIcon: darkMode ? "text-white" : "text-white",
+    inputWrap: darkMode ? "bg-[#1e1b4b] border-indigo-500/30 focus-within:border-indigo-400" : "bg-white border-zinc-200 focus-within:border-zinc-400",
+    inputField: darkMode ? "text-white placeholder:text-indigo-300" : "text-black placeholder:text-zinc-400",
     emptyTitle: darkMode ? "text-white" : "text-black",
-    emptyText: darkMode ? "text-zinc-500" : "text-zinc-500",
-    emptyIcon: darkMode ? "bg-zinc-900 text-zinc-500" : "bg-zinc-100 text-zinc-400",
-    footerText: darkMode ? "text-zinc-700" : "text-zinc-400",
-    logoutHover: darkMode ? "hover:text-red-400 hover:bg-red-500/10" : "hover:text-red-600 hover:bg-red-50",
-    typingDot: darkMode ? "bg-zinc-500" : "bg-zinc-400",
-    logoBox: darkMode ? "bg-white" : "bg-black",
-    logoIcon: darkMode ? "text-[#09090b]" : "text-white",
+    emptyText: darkMode ? "text-indigo-200" : "text-zinc-500",
+    emptyIcon: darkMode ? "bg-[#312e81] text-indigo-300" : "bg-zinc-100 text-zinc-400",
+    footerText: darkMode ? "text-indigo-300/60" : "text-zinc-400",
+    logoutHover: darkMode ? "hover:text-red-300 hover:bg-red-900/20" : "hover:text-red-600 hover:bg-red-50",
+    typingDot: darkMode ? "bg-indigo-400" : "bg-zinc-400",
+    logoBox: darkMode ? "bg-indigo-500" : "bg-black",
+    logoIcon: darkMode ? "text-white" : "text-white",
     logoText: darkMode ? "text-white" : "text-black",
-    logoSub: darkMode ? "text-zinc-600" : "text-zinc-500",
-    sepColor: darkMode ? "bg-white/5" : "",
-    sendBtn: darkMode ? "bg-white text-black hover:bg-zinc-200" : "bg-black text-white hover:bg-zinc-800",
-    sendDisabled: darkMode ? "disabled:bg-zinc-800 disabled:text-zinc-600" : "disabled:bg-zinc-200 disabled:text-zinc-400",
+    logoSub: darkMode ? "text-indigo-200" : "text-zinc-500",
+    sepColor: darkMode ? "bg-indigo-500/20" : "",
+    sendBtn: darkMode ? "bg-indigo-500 text-white hover:bg-indigo-600" : "bg-black text-white hover:bg-zinc-800",
+    sendDisabled: darkMode ? "disabled:bg-[#1e1b4b] disabled:text-indigo-500/40" : "disabled:bg-zinc-200 disabled:text-zinc-400",
   }
 
   return (
@@ -170,6 +171,8 @@ export default function Dashboard() {
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
               <span className={`text-[11px] ${theme.headerSub}`}>Online</span>
             </div>
+
+            <FontSwitcher />
 
             {/* Dark mode toggle */}
             <button
