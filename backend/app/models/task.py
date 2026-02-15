@@ -8,6 +8,7 @@ class Task(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=True) # <--- For your Sidebar (e.g., "Singing Practice")
     encrypted_goal = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"))
     is_completed = Column(Boolean, default=False)
     
     # User Relationship

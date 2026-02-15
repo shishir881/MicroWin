@@ -1,36 +1,50 @@
 import json
 from google import genai
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update
+from sqlalchemy import update, select
 from app.core.config import settings
 from app.schemas.task import MicroWin, TaskStreamChunk
-from app.models.task import MicroWinModel
-from app.core.security import encrypt_data
-from app.models.task import Task
+from app.models.task import MicroWinModel, Task
+from app.models.user import User
+from app.core.security import encrypt_data, decrypt_data
 
 # Initialize Gemini Client
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-async def stream_micro_wins(safe_instruction: str, task_id: int, db: AsyncSession):
+async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, db: AsyncSession):
     """
-    Streams 3-5 steps from AI. 
-    Uses a terminator JSON {"status": "end"} to force the last meaningful step 
-    out of the buffer for database persistence.
+    Fetches user neuro-profile, customizes the prompt, and streams tasks.
     """
+    # 1. Fetch User Profile for Individualization
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    
+    # Decrypt preferences if they exist
+    preferences = decrypt_data(user.encrypted_preferences) if user and user.encrypted_preferences else "None"
+    struggles = decrypt_data(user.encrypted_struggle_areas) if user and user.encrypted_struggle_areas else "None"
+    granularity = user.granularity_level if user else 3
+
+    # 2. The Personalized Prompt
+    # This fulfills the 'Individualized Neuro-Profile' requirement
     prompt = (
-        f"Goal: {safe_instruction}\n"
-        "First, generate a concise 3-4 word title for this task (e.g., 'Mastering Python Basics'). "
-        "Then, break the goal into 3 to 5 tiny actions. "
-        "Output format: "
-        "Line 1: {\"title\": \"...\"}\n"
-        "Following lines: {\"action\": \"...\"}\n"
-        "Final line: {\"status\": \"end\"}"
+        f"You are a neuro-inclusive executive function coach.\n"
+        f"User Struggles: {struggles}\n"
+        f"User Preferences: {preferences}\n"
+        f"Granularity Level: {granularity}/5 (1=Broad steps, 5=Tiny, single-action steps)\n\n"
+        f"Goal: {safe_instruction}\n\n"
+        "Instructions:\n"
+        "1. First, output a 3-4 word title for this task.\n"
+        f"2. Based on granularity {granularity}, break the goal into 3-5 actions. "
+        "3. If granularity is high, ensure actions are sensory-grounded (e.g., 'Touch the cold handle' instead of 'Open fridge').\n"
+        "4. STRICT OUTPUT FORMAT (One JSON per line):\n"
+        "{\"title\": \"...\"}\n"
+        "{\"action\": \"...\"}\n"
+        "{\"status\": \"end\"}"
     )
 
     try:
-        # Start content stream
         stream = client.models.generate_content_stream(
-            model='gemini-2.5-flash', 
+            model='gemini-2.5-flash', # Using Flash for < 5s latency requirement
             contents=prompt
         )
 
@@ -41,38 +55,31 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, db: AsyncSessio
             if chunk.text:
                 buffer += chunk.text
                 
-                # Check for newlines to identify completed JSON lines
                 if "\n" in buffer:
                     lines = buffer.split("\n")
-                    
-                    # Process all complete lines found so far
                     for line in lines[:-1]:
                         line = line.strip()
-                        if not line:
-                            continue
+                        if not line: continue
                         
                         try:
                             raw_data = json.loads(line)
 
-                            # for title file
+                            # Handle AI-Generated Title
                             if "title" in raw_data:
-                                # Update the Task record in Neon with the AI-generated title
                                 stmt = update(Task).where(Task.id == task_id).values(title=raw_data["title"])
                                 await db.execute(stmt)
                                 await db.commit()
-                                # Optional: Yield the title to the frontend so the sidebar updates live
                                 yield f"data: {{\"sidebar_title\": \"{raw_data['title']}\"}}\n\n"
                                 continue
                             
-                            # TERMINATOR HACK: If status is 'end', the stream is done.
-                            # We don't save or yield this line.
                             if raw_data.get("status") == "end":
                                 return 
 
                             action_text = raw_data.get("action")
                             if action_text:
-                                # 1. Encrypt and Save to Neon Cloud
+                                # Encrypting for Privacy-First Cloud storage
                                 encrypted_action = encrypt_data(action_text)
+                                
                                 new_step = MicroWinModel(
                                     task_id=task_id,
                                     encrypted_action=encrypted_action,
@@ -82,7 +89,7 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, db: AsyncSessio
                                 db.add(new_step)
                                 await db.commit()
 
-                                # 2. Format and Yield for the UI
+                                # Yield for UI
                                 chunk_data = TaskStreamChunk(
                                     id=task_id,
                                     original_goal=safe_instruction,
@@ -95,10 +102,8 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, db: AsyncSessio
                                 step_counter += 1
 
                         except json.JSONDecodeError:
-                            # Skip lines that aren't valid JSON yet
                             continue
                     
-                    # Keep the remaining partial data in the buffer
                     buffer = lines[-1]
 
     except Exception as e:
