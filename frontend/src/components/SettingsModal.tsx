@@ -63,7 +63,7 @@ export function SettingsModal({ isOpen, onClose, user, darkMode }: SettingsModal
                 <div className="flex items-center justify-between mb-6">
                     <h2 className={`text-xl font-bold ${theme.text} flex items-center gap-2`}>
                         <Brain className="w-5 h-5 text-orange-500" />
-                        My References
+                        My Preferences
                     </h2>
                     <button onClick={onClose} className={`p-1 rounded-lg hover:bg-gray-100/10 ${theme.subText}`}>
                         <X className="w-5 h-5" />

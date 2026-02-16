@@ -40,6 +40,8 @@ export interface UserData {
     struggle_areas: string | null;
     granularity_level: number;
     auth_provider: string;
+    streak_count: number;
+    total_completed: number;
 }
 
 export interface TokenResponse {
@@ -176,8 +178,16 @@ export async function apiDeleteTask(taskId: number): Promise<void> {
     });
 }
 
-export async function apiUpdateStepStatus(stepId: number, isCompleted: boolean): Promise<void> {
-    await request<void>(`/tasks/microwins/${stepId}?is_completed=${isCompleted}`, {
+export interface StepUpdateResponse {
+    id: number;
+    is_completed: boolean;
+    task_completed: boolean;
+    streak_count: number;
+    total_completed: number;
+}
+
+export async function apiUpdateStepStatus(stepId: number, isCompleted: boolean): Promise<StepUpdateResponse> {
+    return request<StepUpdateResponse>(`/tasks/microwins/${stepId}?is_completed=${isCompleted}`, {
         method: "PATCH",
     });
 }

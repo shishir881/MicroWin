@@ -36,9 +36,10 @@ def _build_user_read(user: User) -> UserRead:
             if user.encrypted_struggle_areas else None
         ),
         granularity_level=user.granularity_level,
-
         auth_provider=user.auth_provider or "email",
         full_name=user.full_name,
+        streak_count=user.streak_count or 0,
+        total_completed=user.total_completed or 0,
     )
 
 

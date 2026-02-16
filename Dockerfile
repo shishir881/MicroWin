@@ -1,47 +1,41 @@
-#builder
-FROM python:3.11-slim as builder
+# ─── Stage 1: Build Frontend ────────────────────────────────
+FROM node:20-slim AS frontend-builder
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-WORKDIR / app
+# ─── Stage 2: Python Backend + Static Frontend ─────────────
+FROM python:3.11-slim
 
-# install system dependencies
+WORKDIR /app
+
+# Install system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+    build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Install Python deps
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-
-#downloading SpaCy
+# Download spaCy model
 RUN python -m spacy download en_core_web_sm
 
+# Copy backend code
+COPY backend/ .
 
-#runtime image
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Copy built frontend into /app/static
+COPY --from=frontend-builder /build/dist /app/static
 
-WORKDIR / app
-
-COPY --from=builder /root/.local /root/.local
-
-ENV PATH=/root/.local/bin:$PATH
-
-#copying SpaCy model from builder
-COPY --from=builder /root/anaconda3/lib/python3.11/site-packages /root/.local/lib/python3.11/site-packages
-
-#copy application code
-COPY . .
-
-
+# Non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-#expose port
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/tasks/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/tasks/health || exit 1
 
-
-CMD ["python", "main.py"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

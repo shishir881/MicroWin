@@ -37,6 +37,9 @@ export function FontSwitcher({ darkMode }: FontSwitcherProps) {
                 <SelectItem value="inter" className={`font-inter ${itemClass}`}>
                     Default (Inter)
                 </SelectItem>
+                <SelectItem value="lexend" className={`${itemClass}`} style={{ fontFamily: "'Lexend', sans-serif" }}>
+                    Lexend
+                </SelectItem>
                 <SelectItem value="opendyslexic" className={`font-opendyslexic ${itemClass}`}>
                     OpenDyslexic
                 </SelectItem>

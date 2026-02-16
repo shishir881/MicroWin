@@ -6,15 +6,20 @@ from app.services.ai_service import stream_micro_wins
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.task import Task, MicroWinModel
+from app.models.user import User
 from app.core.security import encrypt_data, decrypt_data
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.schemas.task import TaskRead
-from app.core.security import decrypt_data
 from typing import List
-from app import db
+from datetime import date
 
 router = APIRouter()
+
+@router.get("/health")
+async def health_check():
+    """Simple health check for Docker HEALTHCHECK."""
+    return {"status": "ok"}
 
 @router.post("/decompose/stream")
 async def decompose_task_stream(
@@ -41,7 +46,11 @@ async def decompose_task_stream(
 
     return StreamingResponse(
         stream_micro_wins(safe_text, new_task.id, user_id, db),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering for SSE
+        }
     )
 
 @router.get("/", response_model=List[TaskRead])
@@ -149,6 +158,7 @@ async def update_microwin_status(step_id: int, is_completed: bool, db: AsyncSess
     """
     Update the completion status of a specific micro-win step.
     Also updates the parent Task's is_completed status if all steps are finished.
+    Includes streak/gamification logic.
     """
     # 1. Fetch the step
     step = await db.get(MicroWinModel, step_id)
@@ -159,14 +169,11 @@ async def update_microwin_status(step_id: int, is_completed: bool, db: AsyncSess
     step.is_completed = is_completed
 
     # 3. Check if ALL steps for this task are now completed
-    # We fetch all steps to verify
     result = await db.execute(
         select(MicroWinModel).where(MicroWinModel.task_id == step.task_id)
     )
     all_steps = result.scalars().all()
 
-    # The 'step' object in 'all_steps' shares the same instance as our 'step' variable
-    # due to SQLAlchemy's identity map, so it already has is_completed=True/False set above.
     all_done = all(s.is_completed for s in all_steps)
 
     # 4. Update Parent Task
@@ -174,10 +181,41 @@ async def update_microwin_status(step_id: int, is_completed: bool, db: AsyncSess
     if parent_task:
         parent_task.is_completed = all_done
 
+    # 5. Gamification: Update streak when a full quest is completed
+    streak_count = 0
+    total_completed = 0
+    if all_done and parent_task and parent_task.user_id:
+        user = await db.get(User, parent_task.user_id)
+        if user:
+            today = date.today()
+            user.total_completed = (user.total_completed or 0) + 1
+            total_completed = user.total_completed
+
+            # Streak logic: consecutive days
+            if user.last_completion_date:
+                days_diff = (today - user.last_completion_date).days
+                if days_diff == 0:
+                    # Same day — keep streak
+                    pass
+                elif days_diff == 1:
+                    # Consecutive day — increment streak
+                    user.streak_count = (user.streak_count or 0) + 1
+                else:
+                    # Streak broken — reset to 1
+                    user.streak_count = 1
+            else:
+                # First ever completion
+                user.streak_count = 1
+            
+            user.last_completion_date = today
+            streak_count = user.streak_count
+
     await db.commit()
     
     return {
         "id": step.id, 
         "is_completed": step.is_completed,
-        "task_completed": parent_task.is_completed if parent_task else False
+        "task_completed": parent_task.is_completed if parent_task else False,
+        "streak_count": streak_count,
+        "total_completed": total_completed,
     }

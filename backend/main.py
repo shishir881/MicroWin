@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,3 +34,20 @@ app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
 @app.get("/")
 def read_root():
     return {"message": "MicroWin Backend is Running"}
+
+# ─── Serve Frontend in Production (Docker) ────────────────
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(STATIC_DIR):
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    @app.get("/assets/{rest_of_path:path}")
+    async def serve_assets(rest_of_path: str):
+        return FileResponse(os.path.join(STATIC_DIR, "assets", rest_of_path))
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = os.path.join(STATIC_DIR, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type FontType = 'inter' | 'opendyslexic' | 'verdana';
+type FontType = 'inter' | 'opendyslexic' | 'verdana' | 'lexend';
 
 interface ThemeContextType {
     font: FontType;
@@ -17,7 +17,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Remove all font classes
-        document.body.classList.remove('font-inter', 'font-opendyslexic', 'font-verdana');
+        document.body.classList.remove('font-inter', 'font-opendyslexic', 'font-verdana', 'font-lexend');
         // Add current font class
         document.body.classList.add(`font-${font}`);
         // Save to local storage

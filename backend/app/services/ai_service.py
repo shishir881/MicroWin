@@ -1,4 +1,5 @@
 import json
+import time
 from google import genai
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, select
@@ -14,7 +15,12 @@ client = genai.Client(api_key=settings.GEMINI_API_KEY)
 async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, db: AsyncSession):
     """
     Fetches user neuro-profile, customizes the prompt, and streams tasks.
+    Includes latency metrics as SSE events to satisfy the <5s requirement.
     """
+    # ─── Latency Timer Start ──────────────────────────────────
+    t_start = time.perf_counter()
+    first_token_emitted = False
+
     # 1. Fetch User Profile for Individualization
     user_result = await db.execute(select(User).where(User.id == user_id))
     user = user_result.scalar_one_or_none()
@@ -53,6 +59,12 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, d
         
         for chunk in stream:
             if chunk.text:
+                # ─── Time-to-First-Token ──────────────────────
+                if not first_token_emitted:
+                    ttft_ms = round((time.perf_counter() - t_start) * 1000)
+                    yield f"data: {{\"latency_ms\": {ttft_ms}}}\n\n"
+                    first_token_emitted = True
+
                 buffer += chunk.text
                 
                 if "\n" in buffer:
@@ -73,6 +85,9 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, d
                                 continue
                             
                             if raw_data.get("status") == "end":
+                                # ─── Total Latency ────────────────────
+                                total_ms = round((time.perf_counter() - t_start) * 1000)
+                                yield f"data: {{\"total_latency_ms\": {total_ms}}}\n\n"
                                 return 
 
                             action_text = raw_data.get("action")
@@ -105,6 +120,10 @@ async def stream_micro_wins(safe_instruction: str, task_id: int, user_id: int, d
                             continue
                     
                     buffer = lines[-1]
+
+        # If stream ends without explicit "end" status, still emit total latency
+        total_ms = round((time.perf_counter() - t_start) * 1000)
+        yield f"data: {{\"total_latency_ms\": {total_ms}}}\n\n"
 
     except Exception as e:
         yield f"data: {{\"error\": \"AI Stream Error: {str(e)}\"}}\n\n"

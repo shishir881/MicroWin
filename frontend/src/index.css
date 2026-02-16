@@ -1,4 +1,5 @@
 @import url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/open-dyslexic.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -9,6 +10,7 @@
   --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
   --font-dyslexic: 'OpenDyslexic', sans-serif;
   --font-verdana: 'Verdana', sans-serif;
+  --font-lexend: 'Lexend', sans-serif;
 
   font-family: var(--font-inter);
   line-height: 1.5;
@@ -194,5 +196,10 @@ body {
 
   body.font-inter {
     font-family: var(--font-inter) !important;
+  }
+
+  body.font-lexend {
+    font-family: var(--font-lexend) !important;
+    letter-spacing: 0.02em;
   }
 }

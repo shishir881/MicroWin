@@ -28,6 +28,8 @@ class UserRead(BaseModel):
     struggle_areas: Optional[str] = None
     granularity_level: int
     auth_provider: str = "email"
+    streak_count: int = 0
+    total_completed: int = 0
 
     class Config:
         from_attributes = True

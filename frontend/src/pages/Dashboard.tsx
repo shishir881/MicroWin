@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo"
 import {
   Send,
   LogOut,
-
+  Zap,
   Sliders,
   Menu,
   X,
@@ -15,7 +15,8 @@ import {
   Star,
   PartyPopper,
   Plus,
-  Check
+  Check,
+  Flame
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -78,11 +79,12 @@ export default function Dashboard() {
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0)
   const [showReward, setShowReward] = useState(false)
   const [mascotMood, setMascotMood] = useState<MascotMood>("idle")
+  const [latencyMs, setLatencyMs] = useState<number | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, updateUser } = useAuth()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -171,7 +173,14 @@ export default function Dashboard() {
 
     // 3. API Call
     try {
-      await apiUpdateStepStatus(stepId, true)
+      const result = await apiUpdateStepStatus(stepId, true)
+      // Update user streak/total in AuthContext when quest completes
+      if (result.task_completed) {
+        updateUser({
+          streak_count: result.streak_count,
+          total_completed: result.total_completed,
+        })
+      }
     } catch {
       // rollback if needed
     }
@@ -192,6 +201,7 @@ export default function Dashboard() {
     setCurrentQuestSteps([])
     setActiveStepIndex(0)
     setMascotMood("thinking")
+    setLatencyMs(null)
     setInput("")
     setIsTyping(true)
 
@@ -215,7 +225,9 @@ export default function Dashboard() {
           if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.slice(6))
-              if (data.current_step?.action) {
+              if (data.latency_ms !== undefined) {
+                setLatencyMs(data.latency_ms)
+              } else if (data.current_step?.action) {
                 collectedSteps.push({
                   id: data.current_step.step_id || stepCounter,
                   action: data.current_step.action,
@@ -526,20 +538,30 @@ export default function Dashboard() {
 
 
                   {/* Quick Stats / Overview */}
-                  <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto mb-8">
+                  <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-8">
                     <div className={`p-4 rounded-xl border ${darkMode ? "bg-[#3E3226] border-[#5C4B3A]" : "bg-white border-orange-100"} text-center`}>
                       <p className={`text-2xl font-bold ${darkMode ? "text-orange-400" : "text-orange-500"}`}>
                         {sidebarTasks.length}
                       </p>
-                      <p className={`text-xs ${theme.logoSub} uppercase tracking-wider font-bold`}>Active Quests</p>
+                      <p className={`text-xs ${theme.logoSub} uppercase tracking-wider font-bold`}>Quests</p>
                     </div>
                     <div className={`p-4 rounded-xl border ${darkMode ? "bg-[#3E3226] border-[#5C4B3A]" : "bg-white border-orange-100"} text-center`}>
-                      <p className={`text-2xl font-bold ${darkMode ? "text-green-400" : "text-green-500"}`}>
-                        {new Date().getDate()}
-                      </p>
-                      <p className={`text-xs ${theme.logoSub} uppercase tracking-wider font-bold`}>
-                        {new Date().toLocaleString('default', { month: 'short' })}
-                      </p>
+                      <div className="flex items-center justify-center gap-1">
+                        <Flame className={`w-5 h-5 ${darkMode ? "text-red-400" : "text-red-500"}`} />
+                        <p className={`text-2xl font-bold ${darkMode ? "text-red-400" : "text-red-500"}`}>
+                          {user?.streak_count || 0}
+                        </p>
+                      </div>
+                      <p className={`text-xs ${theme.logoSub} uppercase tracking-wider font-bold`}>Streak</p>
+                    </div>
+                    <div className={`p-4 rounded-xl border ${darkMode ? "bg-[#3E3226] border-[#5C4B3A]" : "bg-white border-orange-100"} text-center`}>
+                      <div className="flex items-center justify-center gap-1">
+                        <Trophy className={`w-5 h-5 ${darkMode ? "text-green-400" : "text-green-500"}`} />
+                        <p className={`text-2xl font-bold ${darkMode ? "text-green-400" : "text-green-500"}`}>
+                          {user?.total_completed || 0}
+                        </p>
+                      </div>
+                      <p className={`text-xs ${theme.logoSub} uppercase tracking-wider font-bold`}>Done</p>
                     </div>
                   </div>
 
@@ -569,6 +591,12 @@ export default function Dashboard() {
                       <div className="absolute -top-4 left-6 md:left-8 bg-amber-500 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">
                         Step {activeStepIndex + 1} of {currentQuestSteps.length}
                       </div>
+                      {latencyMs !== null && (
+                        <div className="absolute -top-4 right-6 md:right-8 bg-emerald-500 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          {(latencyMs / 1000).toFixed(1)}s
+                        </div>
+                      )}
 
                       <h3 className={`text-2xl md:text-3xl font-bold text-center mb-8 mt-4 leading-tight ${theme.emptyTitle}`}>
                         {currentQuestSteps[activeStepIndex].action}
@@ -584,8 +612,8 @@ export default function Dashboard() {
                             I DID IT!
                           </button>
                         ) : (
-                          <div className="px-8 py-5 rounded-2xl bg-green-500 text-white font-bold text-xl animate-bounce flex items-center gap-3 shadow-lg shadow-green-500/30">
-                            <PartyPopper className="w-7 h-7" />
+                          <div className={`px-8 py-5 rounded-2xl ${theme.bg} ${theme.headerText} font-bold text-xl animate-bounce flex items-center gap-3 shadow-lg shadow-green-500/10 border-2 ${theme.header}`}>
+                            <PartyPopper className="w-7 h-7 text-green-500" />
                             {SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)]}
                           </div>
                         )}

@@ -22,7 +22,7 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     signup: (email: string, password: string, fullName?: string) => Promise<void>;
     handleOAuthCallback: (accessToken: string) => Promise<void>;
-
+    updateUser: (partial: Partial<UserData>) => void;
     logout: () => void;
 }
 
@@ -82,6 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
 
+    const updateUser = (partial: Partial<UserData>) => {
+        setUser(prev => prev ? { ...prev, ...partial } : prev);
+    };
+
     const logout = () => {
         localStorage.removeItem("token");
         localStorage.removeItem("condition");
@@ -98,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 login,
                 signup,
                 handleOAuthCallback,
+                updateUser,
                 logout,
             }}
         >

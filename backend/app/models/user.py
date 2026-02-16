@@ -1,5 +1,5 @@
 # app/models/user.py
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Date
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
@@ -19,5 +19,10 @@ class User(Base):
     encrypted_preferences = Column(String, nullable=True) 
     encrypted_struggle_areas = Column(String, nullable=True)
     granularity_level = Column(Integer, default=3) 
+
+    # --- Gamification (Streaks & Badges) ---
+    streak_count = Column(Integer, default=0)
+    last_completion_date = Column(Date, nullable=True)
+    total_completed = Column(Integer, default=0)
 
     tasks = relationship("Task", back_populates="owner")
