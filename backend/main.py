@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,7 +12,16 @@ from app.core.config import settings
 from app.models.task import Task
 from app.models.user import User
 
-app = FastAPI(title="MicroWin API")
+from app.db.session import engine, Base
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Auto-create tables on startup (safe: create_all is a no-op if tables exist)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
+app = FastAPI(title="MicroWin API", lifespan=lifespan)
 
 # ─── CORS ─────────────────────────────────────────────────────
 app.add_middleware(
